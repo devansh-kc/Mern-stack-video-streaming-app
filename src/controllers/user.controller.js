@@ -1,10 +1,14 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { APIError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  deleteFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { v2 as cloudinary } from "cloudinary";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -72,7 +76,7 @@ const registerUser = asyncHandler(async (req, res) => {
   const avatar = await uploadOnCloudinary(avatarLocalPath);
 
   const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-  if (avatar === null) {
+  if (!avatar) {
     throw new APIError(400, "Avatar  file for cloudinary  is required");
   }
   const user = await User.create({
@@ -149,8 +153,8 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
+      $unset: {
+        refreshToken: 1,
       },
     },
     {
@@ -203,6 +207,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     };
     const { accessToken, newRefreshToken } =
       await generateAccessAndRefreshToken(user._id);
+
     return res
       .status(200)
       .cookie("accessToken", accessToken, options)
@@ -231,14 +236,14 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     throw new APIError(400, "invalid old password");
   }
   user.password = newPassword;
-  await User.save({ validateBeforeSave: false });
+  await user.save({ validateBeforeSave: false });
+
   return res
     .status(200)
     .json(new ApiResponse(200, {}, "Password Changed Successfully"));
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
-  console.log(req);
   // TODO: middleware me user   insert kiya hai toh me pass user ka acccess hai
   // TODO:  toh me kya kar saqta hu ki user ko get karne ke liiye me user ko find by id kar saqta hu
   // const { user } = req.user;
@@ -257,7 +262,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullName, email } = req.body;
-  if (!fullName || email) {
+  if (!fullName || !email) {
     throw new APIError(400, "All fields are required");
   }
   const user = await User.findByIdAndUpdate(
@@ -279,6 +284,11 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 const updateUserAvatar = asyncHandler(async (req, res) => {
   // TODO: toh sabse pahele avatar update karne ke liye  ye dekhna hai ki user logged in hai ya nahi agar loggedin hai toh hi user ka avatar change karna hai
   // TODO: login hoga toh multer middle ware and auth middle ware kko use kar ke mae change kar dunga
+  const oldAvatar = await User.findById(req.user?._id);
+  const oldAvatarImage = await oldAvatar.avatar;
+  const AvatarPublicID = oldAvatarImage.split("/")[7].split(".")[0];
+
+  deleteFromCloudinary(AvatarPublicID);
   const avatarLocalPath = req.file?.path;
 
   if (!avatarLocalPath) {
@@ -286,9 +296,9 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   }
   // TODO: purini file delete kar ni hai
 
-  const avatar = uploadOnCloudinary(avatarLocalPath);
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
   if (!avatar.url) {
-    throw new APIError(400, "Error while  uploading  on avatar");
+    throw new APIError(500, "Error while  uploading  on avatar");
   }
 
   const user = await User.findByIdAndUpdate(
@@ -308,13 +318,13 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
 const updateUserCoverImage = asyncHandler(async (req, res) => {
   // TODO: coverImage karne ke liye vohi same cheez hai par abhi mere ko array ko update karna hai .
-  // TODO : user logged in hoga toh hi vo change kar payega and user  videos upload karega toh hi vo  coverImage ko change kar payega
+  // TODO: user logged in hoga toh hi vo change kar payega and user  videos upload karega toh hi vo  coverImage ko change kar payega
 
   const coverImageLocalPath = req.file?.path;
   if (!coverImageLocalPath) {
     throw new APIError(400, "Cover Image file is missing");
   }
-  const coverImage = uploadOnCloudinary(coverImageLocalPath);
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
   if (!coverImage.url) {
     throw new APIError(400, "Error While uploading the cover image ");
@@ -351,7 +361,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       $lookup: {
         from: "subscriptions",
         localField: "_id",
-        foreignField: "channels",
+        foreignField: "channel",
         as: "subscribers",
       },
     },
@@ -359,7 +369,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
       $lookup: {
         from: "subscriptions",
         localField: "_id",
-        foreignField: "channels",
+        foreignField: "subscriber",
         as: "subscribedTo",
       },
     },
@@ -446,7 +456,7 @@ const getWatchHistory = asyncHandler(async (req, res) => {
       },
     },
   ]);
-
+  console.log("log from  get watch history ", user[0].watchHistory);
   return res
     .status(200)
     .json(new ApiResponse(200, user[0].watchHistory, "watch History fetched "));
