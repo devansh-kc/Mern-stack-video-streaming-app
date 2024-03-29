@@ -8,7 +8,6 @@ import {
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import { v2 as cloudinary } from "cloudinary";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -285,9 +284,8 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   // TODO: login hoga toh multer middle ware and auth middle ware kko use kar ke mae change kar dunga
   const oldAvatar = await User.findById(req.user?._id);
   const oldAvatarImage = await oldAvatar.avatar;
-  const AvatarPublicID = oldAvatarImage.split("/")[7].split(".")[0];
 
-  deleteFromCloudinary(AvatarPublicID);
+  deleteFromCloudinary(oldAvatarImage);
   const avatarLocalPath = req.file?.path;
 
   if (!avatarLocalPath) {
@@ -345,7 +343,6 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
 });
 
 const getUserChannelProfile = asyncHandler(async (req, res) => {
-  console.log("log from req params", req.params);
   const { username } = req.params;
   if (!username?.trim()) {
     throw new APIError(400, "username is  missing ");

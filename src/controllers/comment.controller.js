@@ -7,10 +7,35 @@ import { Video } from "../models/video.model.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
   //TODO: get all comments for a video
+  /*
+    1-verify videoId
+    2-match comment for videoId
+    3-pagination
+    4-add number of likes for the comment from like model
+    5-sort by date descending
+    6-return comments
+    */
   const { videoId } = req.params;
   const { page = 1, limit = 10 } = req.query;
-  
+  const PageNum = Number(page);
+  const limitNum = Number(limit);
+  if (!PageNum || !limitNum || !videoId) {
+    throw new APIError(400, "Seems like you are not providing an valid input ");
+  }
+  if (!isValidObjectId(videoId)) {
+    throw new APIError(400, "This video doesn't exists anymore");
+  }
 
+  const getComments = await Comment.aggregate([
+    {
+      $match: {
+        video: new mongoose.Types.ObjectId(videoId),
+      },
+    },
+    {
+      limit: limitNum,
+    },
+  ]);
 });
 
 const addComment = asyncHandler(async (req, res) => {
@@ -20,8 +45,8 @@ const addComment = asyncHandler(async (req, res) => {
   const { content } = req.body;
 
   try {
-    if(!isValidObjectId(videoId)){
-      throw new APIError(400,"This video doesn't exists")
+    if (!isValidObjectId(videoId)) {
+      throw new APIError(400, "This video doesn't exists");
     }
 
     if (!content) {
