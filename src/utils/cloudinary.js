@@ -3,9 +3,9 @@ import fs from "fs";
 import { APIError } from "./apiError.js";
 
 cloudinary.config({
-  cloud_name: "dcjh2tkr8",
-  api_key: "537454131721289",
-  api_secret: "0VKaZAwG0A5ZRq1eueyqrQ4gtgE",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 // console.log(cloudinary.api);
 const uploadOnCloudinary = async (localFilePath) => {
@@ -29,8 +29,8 @@ const deleteFromCloudinary = async (filePath) => {
   try {
     if (!filePath) null;
 
-     await cloudinary.uploader.destroy(
-      filePath.split('/').pop().split(".")[0],
+    await cloudinary.uploader.destroy(
+      filePath.split("/").pop().split(".")[0],
       (error) => {
         if (error) {
           throw new APIError(404, error, "Image not found");

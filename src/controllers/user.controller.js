@@ -221,7 +221,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
-    console.log(error);
+    // console.log(error);
     throw new APIError(401, "Invalid refreshToken");
   }
 });
@@ -242,7 +242,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 });
 
 const getCurrentUser = asyncHandler(async (req, res) => {
-  // TODO: middleware me user   insert kiya hai toh me pass user ka acccess hai
+  // TODO: middleware me user insert kiya hai toh me pass user ka acccess hai
   // TODO:  toh me kya kar saqta hu ki user ko get karne ke liiye me user ko find by id kar saqta hu
   // const { user } = req.user;
   // const currentUser = await User.findById(user?._id);
@@ -400,7 +400,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     },
   ]);
 
-  console.log("Channel log", channel);
+  // console.log("Channel log", channel);
   if (!channel?.length) {
     throw new APIError(404, "channel does not exists ");
   }
