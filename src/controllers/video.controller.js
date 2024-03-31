@@ -130,7 +130,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
       await deleteFromCloudinary(thumbnail);
       await Video.findByIdAndDelete(videoId);
     }
-    res.status(200).json(new ApiResponse(400, "Video Successfully  deleted "));
+    res.status(200).json(new ApiResponse(200, "Video Successfully  deleted "));
   } catch (error) {
     throw new APIError(400, error);
   }

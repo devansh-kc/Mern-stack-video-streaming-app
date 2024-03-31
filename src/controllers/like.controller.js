@@ -5,6 +5,7 @@ import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { Video } from "../models/video.model.js";
 import { Comment } from "../models/comment.model.js";
+import { Tweet } from "../models/tweet.model.js";
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
@@ -43,20 +44,19 @@ const toggleVideoLike = asyncHandler(async (req, res) => {
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
-
+  if (!isValidObjectId(commentId)) {
+    throw new APIError(404, "Object id is not valid");
+  }
+  const comment = await Comment.findById(commentId);
+  if (!comment) {
+    throw new APIError("This comment doesn't exists");
+  }
+  const loggedInUser = req.user?._id;
+  const existingLike = await Like.findOne({
+    likedBy: loggedInUser,
+    comment: comment._id,
+  });
   try {
-    if (!isValidObjectId(commentId)) {
-      throw new APIError(404, "Object id is not valid");
-    }
-    const comment = await Comment.findById(commentId);
-    if (!comment) {
-      throw new APIError("This comment doesn't exists");
-    }
-    const loggedInUser = req.user?._id;
-    const existingLike = await Like.findOne({
-      likedBy: loggedInUser,
-      comment: comment._id,
-    });
     if (existingLike) {
       await Like.findByIdAndDelete(existingLike._id);
       res.status(200).json(new ApiResponse(200, "Like from comment removed "));
@@ -79,6 +79,40 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
 const toggleTweetLike = asyncHandler(async (req, res) => {
   const { tweetId } = req.params;
   //TODO: toggle like on tweet
+  if (!tweetId) {
+    throw new APIError(400, "tweet id is required");
+  }
+
+  if (!isValidObjectId(tweetId)) {
+    throw new APIError(400, "this tweet id is not valid ");
+  }
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) {
+    throw new APIError(400, "this tweet doesn't exists anymore");
+  }
+  const loggedInUser = req.user?._id;
+  const existingLike = await Tweet.findOne({
+    tweet: tweet._id,
+    likedBy: loggedInUser,
+  });
+  try {
+    if (existingLike) {
+      await Like.findByIdAndRemove(existingLike._id);
+      res.status(200).json(new ApiResponse(200, "Like from tweet removed "));
+    } else {
+      const tweetLike = await Like.create({
+        tweet: tweetId,
+        likedBy: loggedInUser,
+      });
+      res.status(200).json(200, tweetLike, "tweet Liked");
+    }
+  } catch (error) {
+    throw new APIError(
+      500,
+      error,
+      "Something went wrong while liking the tweet "
+    );
+  }
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
