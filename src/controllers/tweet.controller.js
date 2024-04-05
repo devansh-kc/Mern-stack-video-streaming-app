@@ -31,6 +31,13 @@ const createTweet = asyncHandler(async (req, res) => {
 
 const getUserTweets = asyncHandler(async (req, res) => {
   // TODO: get user tweets
+  /*
+    1-get userId and match for owner id in  tweet collection
+    2-add total liked, content,owner, created at and updated at to each tweet
+    3-get tweet owner datails
+    4-add tweet and tweet owner details inside TweetListAndOwner
+    3- send res
+    */
   const { userId } = req.params;
   if (!userId) {
     throw new APIError(400, "user Id is required ");
@@ -47,9 +54,30 @@ const getUserTweets = asyncHandler(async (req, res) => {
   const userTweets = await Tweet.aggregate([
     {
       $match: {
-        owner: user?._id,
+        owner:  new  mongoose.Types.ObjectId(req.user._id),
       },
     },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "tweet",
+        as: "tweetLikedBy",
+      },
+    },
+    {
+      $group:{
+        _id:"$_id",
+        owner:{$first:"$owner"},
+        content:{$first:"$content"},
+        createdAt:{$first:"$createdAt"},
+        updatedAt:{$first:"$updatedAt"},
+        totalNumberOfLikes : {
+          $sum:{$size:"$tweetLikedBy"}
+        }
+      }
+    },
+
   ]);
   res.status(200).json(new ApiResponse(200, userTweets, "user tweets fetched"));
 });

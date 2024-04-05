@@ -91,20 +91,23 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
     throw new APIError(400, "this tweet doesn't exists anymore");
   }
   const loggedInUser = req.user?._id;
-  const existingLike = await Tweet.findOne({
-    tweet: tweet._id,
+  const existingLike = await Like.findOne({
     likedBy: loggedInUser,
+    tweet: tweet._id,
   });
+
   try {
     if (existingLike) {
-      await Like.findByIdAndRemove(existingLike._id);
-      res.status(200).json(new ApiResponse(200, "Like from tweet removed "));
+      await Like.findByIdAndDelete(existingLike._id);
+      res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Like from tweet removed "));
     } else {
       const tweetLike = await Like.create({
         tweet: tweetId,
         likedBy: loggedInUser,
       });
-      res.status(200).json(200, tweetLike, "tweet Liked");
+      res.status(200).json(new ApiResponse(200, tweetLike, "tweet Liked"));
     }
   } catch (error) {
     throw new APIError(
