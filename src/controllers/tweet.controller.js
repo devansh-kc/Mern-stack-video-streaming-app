@@ -4,6 +4,7 @@ import { User } from "../models/user.model.js";
 import { APIError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { Like } from "../models/like.model.js";
 
 const createTweet = asyncHandler(async (req, res) => {
   //TODO: create tweet
@@ -54,7 +55,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
   const userTweets = await Tweet.aggregate([
     {
       $match: {
-        owner:  new  mongoose.Types.ObjectId(req.user._id),
+        owner: new mongoose.Types.ObjectId(req.user._id),
       },
     },
     {
@@ -66,20 +67,54 @@ const getUserTweets = asyncHandler(async (req, res) => {
       },
     },
     {
-      $group:{
-        _id:"$_id",
-        owner:{$first:"$owner"},
-        content:{$first:"$content"},
-        createdAt:{$first:"$createdAt"},
-        updatedAt:{$first:"$updatedAt"},
-        totalNumberOfLikes : {
-          $sum:{$size:"$tweetLikedBy"}
-        }
-      }
-    },
+      $group: {
+        _id: "$_id",
+        owner: { $first: "$owner" },
 
+        content: { $first: "$content" },
+        createdAt: { $first: "$createdAt" },
+        updatedAt: { $first: "$updatedAt" },
+        totalNumberOfLikes: {
+          $sum: { $size: "$tweetLikedBy" },
+        },
+      },
+    },
   ]);
-  res.status(200).json(new ApiResponse(200, userTweets, "user tweets fetched"));
+  const tweetLikedByUser = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $addFields: {
+        istweetOwner: {
+          $cond: {
+            if: { $eq: [req.user?._id.toString(), userId] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        username: 1,
+        fullname: 1,
+        avatar: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        istweetOwner: 1,
+      },
+    },
+  ]);
+  const TweetListAndOwner = {
+    userTweets,
+    tweetLikedByUser,
+  };
+  res
+    .status(200)
+    .json(new ApiResponse(200, TweetListAndOwner, "user tweets fetched"));
 });
 
 const updateTweet = asyncHandler(async (req, res) => {
@@ -123,6 +158,8 @@ const updateTweet = asyncHandler(async (req, res) => {
 
 const deleteTweet = asyncHandler(async (req, res) => {
   //TODO: delete tweet
+  // TODO: before deleting the tweet also delete the likes
+
   const { tweetId } = req.params;
   if (!tweetId) {
     throw new APIError(400, "tweet id is required");
@@ -137,8 +174,11 @@ const deleteTweet = asyncHandler(async (req, res) => {
   if (tweet.owner.toString() !== req.user?._id.toString()) {
     throw new APIError(400, "you cannot delete this tweet");
   }
+
   try {
+    await Like.deleteMany({ tweet: tweet._id });
     await Tweet.findByIdAndDelete(tweetId);
+
     res.status(200).json(new ApiResponse(200, {}, "tweet has been deleted "));
   } catch (error) {
     throw new APIError(500, "something went wrong while deleting the tweet");

@@ -62,6 +62,69 @@ const publishAVideo = asyncHandler(async (req, res) => {
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   //TODO: get video by id
+  // TODO: check  , is it valid object id or not , after that find the document ,
+  // TODO: after finding the document use aggregations to show the number of likes and comments
+  // and thats it
+  // TODO: step1   get the comments
+
+  if (!videoId) {
+    throw new APIError(400, "VideoId is required");
+  }
+
+  if (!isValidObjectId(videoId)) {
+    throw new APIError(400, "Video id is not valid ");
+  }
+
+  const video = Video.findById(videoId);
+  console.log(video._id)
+  if (!video) {
+    throw new APIError(404, "this video doesn't exists anymore ");
+  } else {
+    await Video.findByIdAndUpdate(videoId, {
+      $inc: { views: 1 },
+    });
+  }
+  const getCommentsAndLikeFortheRequestedVideo = await Video.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(videoId),
+        isPublished: true,
+      },
+    },
+    // {
+    // $facet: {
+    //   getVideoDetails: [
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner_details",
+      },
+    },
+    {
+      $lookup: {
+        from: "comments",
+        localField: "_id",
+        foreignField: "video",
+        as: "Comments",
+      },
+    },
+
+    //   ],
+    // },
+    // },
+  ]);
+  // console.log(getCommentsAndLikeFortheRequestedVideo);
+  res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        getCommentsAndLikeFortheRequestedVideo,
+        "details fetched"
+      )
+    );
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
@@ -82,23 +145,24 @@ const updateVideo = asyncHandler(async (req, res) => {
 
     if (video.owner.toString() != req.user._id.toString()) {
       throw new APIError(400, "you are not allowed to update this video ");
-    } 
-      await deleteFromCloudinary(video.thumbnail);
-      const updatedImage = await uploadOnCloudinary(thumbnail);
-      const updatedDetails =await Video.findByIdAndUpdate(
-        videoId,
-        {
-          $set: {
-            thumbnail: updatedImage.url,
-            title,
-            description,
-          },
+    }
+    await deleteFromCloudinary(video.thumbnail);
+    const updatedImage = await uploadOnCloudinary(thumbnail);
+    const updatedDetails = await Video.findByIdAndUpdate(
+      videoId,
+      {
+        $set: {
+          thumbnail: updatedImage.url,
+          title,
+          description,
         },
-        { new: true }
-      );
-    
+      },
+      { new: true }
+    );
 
-    res.status(200).json(new ApiResponse(200,"the data has been updated",updatedDetails))
+    res
+      .status(200)
+      .json(new ApiResponse(200, "the data has been updated", updatedDetails));
   } catch (error) {
     throw new APIError(400, error, "error from update video ");
   }

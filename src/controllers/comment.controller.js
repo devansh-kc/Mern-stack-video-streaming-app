@@ -4,6 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { APIError } from "../utils/apiError.js";
 import { Video } from "../models/video.model.js";
+import { Like } from "../models/like.model.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
   //TODO: get all comments for a video
@@ -33,9 +34,76 @@ const getVideoComments = asyncHandler(async (req, res) => {
       },
     },
     {
-      limit: limitNum,
+      $skip: (PageNum - 1) * limitNum,
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "owner",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              fullName: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "comment",
+        as: "TotalNumberOfLikeOnComment",
+      },
+    },
+    {
+      $addFields: {
+        LikedByUser: {
+          $in: [req.user._id, "$TotalNumberOfLikeOnComment.likedBy"],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$_id",
+        content: { $first: "$content" },
+        owner: { $first: "$owner" },
+        video: { $first: "$video" },
+        createdAt: { $first: "$createdAt" },
+        updatedAt: { $first: "$updatedAt" },
+        LikesOnComment: {
+          $sum: { $size: "$TotalNumberOfLikeOnComment" },
+        },
+        likedByUser: { $first: "$LikedByUser" },
+      },
+    },
+    {
+      $addFields: {
+        owner: {
+          $first: "$owner",
+        },
+        isOwner: {
+          $cond: {
+            if: { $eq: [req.user?._id, { $arrayElemAt: ["$owner._id", 0] }] },
+            then: true,
+            else: false,
+          },
+        },
+      },
     },
   ]);
+  if (!getComments?.length) {
+    throw new APIError(
+      400,
+      "No comments found for this video. Or, you may try a lower page number."
+    );
+  }
+  res.status(200).json(new ApiResponse(200, getComments, "comments"));
 });
 
 const addComment = asyncHandler(async (req, res) => {
@@ -114,10 +182,14 @@ const deleteComment = asyncHandler(async (req, res) => {
 
     if (comment.owner.toString() != req.user._id.toString()) {
       throw new APIError(400, "you are not allowed to delete this comment");
-    }
-    await Comment.findByIdAndDelete(commentId);
+    } else {
+      await Like.deleteMany({ comment: commentId });
+      await Comment.findByIdAndDelete(commentId);
 
-    res.status(200).json(new ApiResponse(200, "Comment deleted successfully"));
+      res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Comment deleted successfully"));
+    }
   } catch (error) {
     throw new APIError(500, error, "something went wrong ");
   }
