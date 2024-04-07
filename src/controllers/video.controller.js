@@ -4,6 +4,8 @@ import { Video } from "../models/video.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { APIError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
+import { Comment } from "../models/comment.model.js";
+import { Like } from "../models/like.model.js";
 import {
   uploadOnCloudinary,
   deleteFromCloudinary,
@@ -65,8 +67,7 @@ const getVideoById = asyncHandler(async (req, res) => {
   // TODO: check  , is it valid object id or not , after that find the document ,
   // TODO: after finding the document use aggregations to show the number of likes and comments
   // and thats it
-  // TODO: step1   get the comments
-
+  // 3- add owner,likes, comments, subscribers and subscription and like status of this user
   if (!videoId) {
     throw new APIError(400, "VideoId is required");
   }
@@ -75,8 +76,7 @@ const getVideoById = asyncHandler(async (req, res) => {
     throw new APIError(400, "Video id is not valid ");
   }
 
-  const video = Video.findById(videoId);
-  console.log(video._id)
+  const video = await Video.findById(videoId);
   if (!video) {
     throw new APIError(404, "this video doesn't exists anymore ");
   } else {
@@ -91,31 +91,78 @@ const getVideoById = asyncHandler(async (req, res) => {
         isPublished: true,
       },
     },
-    // {
-    // $facet: {
-    //   getVideoDetails: [
     {
-      $lookup: {
-        from: "users",
-        localField: "owner",
-        foreignField: "_id",
-        as: "owner_details",
+      $facet: {
+        getVideoDetails: [
+          {
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner_details",
+              pipeline: [
+                {
+                  $project: {
+                    username: 1,
+                    fullName: 1,
+                    avatar: 1,
+                    createdAt: 1,
+                    updatedAt: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner_details: {
+                $first: "$owner_details",
+              },
+            },
+          },
+        ],
+        getLikeCommentAndSubscription: [
+          {
+            $lookup: {
+              from: "likes",
+              localField: "_id",
+              foreignField: "video",
+              as: "likes",
+            },
+          },
+          {
+            $addFields: {
+              likedByUser: {
+                $in: [req.user?._id, "$likes.likedBy"],
+              },
+              totalNumberOfLikes: {
+                $sum: { $size: "$likes" },
+              },
+            },
+          },
+          {
+            $lookup: {
+              from: "comments",
+              localField: "_id",
+              foreignField: "video",
+              as: "Comments",
+            },
+          },
+          {
+            $addFields: {
+              totalNumberOfComments: {
+                $sum: {
+                  $size: "$Comments",
+                },
+              },
+            },
+          },
+        ],
       },
     },
-    {
-      $lookup: {
-        from: "comments",
-        localField: "_id",
-        foreignField: "video",
-        as: "Comments",
-      },
-    },
-
-    //   ],
-    // },
-    // },
+    // TODO: I have to work after working on the subscription controller.
   ]);
-  // console.log(getCommentsAndLikeFortheRequestedVideo);
+
   res
     .status(200)
     .json(
@@ -192,7 +239,9 @@ const deleteVideo = asyncHandler(async (req, res) => {
     } else {
       await deleteFromCloudinary(videoFile);
       await deleteFromCloudinary(thumbnail);
-      await Video.findByIdAndDelete(videoId);
+      await Comment.deleteMany({ video: videoId });
+      await Like.deleteMany({ video: videoId });
+      await await Video.findByIdAndDelete(videoId);
     }
     res.status(200).json(new ApiResponse(200, "Video Successfully  deleted "));
   } catch (error) {

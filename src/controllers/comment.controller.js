@@ -112,24 +112,24 @@ const addComment = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   const { content } = req.body;
 
+  if (!isValidObjectId(videoId)) {
+    throw new APIError(400, "This video doesn't exists");
+  }
+  
+  if (!content) {
+    throw new APIError(404, "commment is required");
+  }
   try {
-    if (!isValidObjectId(videoId)) {
-      throw new APIError(400, "This video doesn't exists");
-    }
-
-    if (!content) {
-      throw new APIError(404, "commment is required");
-    }
-    const comment = await Comment.create({
-      content,
-      video: videoId,
-      owner: req.user._id,
-    });
-
-    if (!comment) {
-      throw new APIError(500, "Something went wrong ");
-    }
-    res
+  const comment = await Comment.create({
+    content,
+    video: videoId,
+    owner: req.user._id,
+  });
+  
+  if (!comment) {
+    throw new APIError(500, "Something went wrong ");
+  }
+  res
       .status(200)
       .json(new ApiResponse(200, comment, "Comment created successfully"));
   } catch (error) {
@@ -142,17 +142,18 @@ const updateComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
   const { content } = req.body;
 
+  if (!isValidObjectId(commentId)) {
+    throw new APIError(404, "Comment Id is not valid");
+  }
+  const comment = await Comment.findById(commentId);
+  if (!comment) {
+    throw new APIError(400, "comment doesn't exists");
+  }
+  if (comment.owner.toString() != req.user._id.toString()) {
+    throw new APIError(400, " you are not allowed to change this comment");
+  }
   try {
-    if (!isValidObjectId(commentId)) {
-      throw new APIError(404, "Comment Does not exists");
-    }
-    const comment = await Comment.findById(commentId);
-    if (!comment) {
-      throw new APIError(400, "comment doesn't exists");
-    }
-    if (comment.owner.toString() != req.user._id.toString()) {
-      throw new APIError(400, " you are not allowed to change this comment");
-    }
+
     const newComment = await Comment.findByIdAndUpdate(
       commentId,
       {
