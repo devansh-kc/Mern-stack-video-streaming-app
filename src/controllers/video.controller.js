@@ -14,53 +14,82 @@ import {
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
   //TODO: get all videos based on query, sort, pagination
-  const sortTypeNum = Number(sortType) || 1;
+  const sortTypeNum = Number(sortType) || -1;
   const limitNum = Number(limit);
-
-  const fetchAllVideos = await Video.aggregate([
-    {
-      $match: {
-        isPublished: true,
-      },
-    },
-    {
-      $addFields: {
-        sortField: {
-          $toString: "$" + (sortBy || "createdAt"),
+  const pageNumber = Number(page);
+  await Video.createIndexes({ title: "text", description: "text" });
+  if (userId && !isValidObjectId(userId)) {
+    throw new APIError(400, "Invalid user ID");
+  }
+  try {
+    const fetchAllVideos = await Video.aggregate([
+      {
+        $match: {
+          isPublished: true,
         },
       },
-    },
-    {
-      $facet: {
-        videos: [
-          {
-            $sort: { sortField: sortTypeNum },
+
+      {
+        $addFields: {
+          sortField: {
+            $toString: "$" + (sortBy || "createdAt"),
           },
-          {
-            $limit: limitNum,
-          },
-          {
-            $lookup: {
-              from: "users",
-              localField: "owner",
-              foreignField: "_id",
-              as: "owner details",
-              pipeline: [
-                {
-                  $project: {
-                    username: 1,
-                    fullName: 1,
-                    avatar: 1,
-                  },
-                },
-              ],
-            },
-          },
-        ],
+        },
       },
-    },
-  ]);
-  res.status(200).json(new ApiResponse(200, fetchAllVideos, "videos fetched"));
+      {
+        $facet: {
+          videos: [
+            {
+              $sort: { sortField: sortTypeNum },
+            },
+            {
+              $skip: (pageNumber - 1) * limitNum,
+            },
+            {
+              $limit: limitNum,
+            },
+            {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner_details",
+                pipeline: [
+                  {
+                    $project: {
+                      username: 1,
+                      fullName: 1,
+                      avatar: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                owner: {
+                  $first: "$owner_details",
+                },
+              },
+            },
+          ],
+          CountNumberOfVideo: [{ $count: "videos" }],
+        },
+      },
+    ]);
+    if (!fetchAllVideos[0]?.videos?.length) {
+      throw new APIError(402, "You should try lower page number");
+    }
+
+    // if (!fetchAllVideos[0]?.matchedVideosCount?.length) {
+    //   throw new APIError(403, "no video for this query");
+    // }
+    res
+      .status(200)
+      .json(new ApiResponse(200, fetchAllVideos, "videos fetched"));
+  } catch (error) {
+    throw new APIError(500, error, "Can't get video ");
+  }
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
