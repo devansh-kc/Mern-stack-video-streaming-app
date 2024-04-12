@@ -55,8 +55,78 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 });
 
 // controller to return subscriber list of a channel
+// TODO: I have to check the channel id is valid or not
+// TODO: After that I will check that  based on channelId the channel has subscribed how many channels
+// TODO: after that I will show the info and number of count
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
-  const { channelId } = req.params;
+  const { subscriberId } = req.params;
+  console.log(subscriberId);
+  if (!subscriberId) {
+    throw new APIError(400, "channel Id is required ");
+  }
+  if (!isValidObjectId(subscriberId)) {
+    throw new APIError(400, "the Channel Id is not valid");
+  }
+
+  if (req.user._id.toString() != subscriberId.toString()) {
+    throw new APIError(
+      400,
+      "You are not the owner of this channel to get subscribers list"
+    );
+  }
+
+  try {
+    const getSubscribedChannelsByOwner = await Subscription.aggregate([
+      {
+        $match: {
+          channel: new mongoose.Types.ObjectId(subscriberId),
+        },
+      },
+      {
+        $facet: {
+          subscribers: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "subscriber",
+                foreignField: "_id",
+                as: "subscribers",
+                pipeline: [
+                  {
+                    $project: {
+                      username: 1,
+                      fullName: 1,
+                      avatar: 1,
+                      createdAt: 1,
+                      updatedAt: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                subscriber: {
+                  $first: "$subscribers",
+                },
+              },
+            },
+          ],
+          subscriberCount:[
+            {
+              $count:"subscribers"
+            }
+          ]
+        },
+      },
+    ]);
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, getSubscribedChannelsByOwner[0], "subscriber fetched")
+      );
+  } catch (error) {}
 });
 
 // controller to return channel list to which user has subscribed
