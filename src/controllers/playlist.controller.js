@@ -76,14 +76,82 @@ const getPlaylistById = asyncHandler(async (req, res) => {
   if (!isValidObjectId(playlistId)) {
     throw new APIError(400, "this PlayList doesN't exists");
   }
-  const GetPlayList = await PlayList.aggregate([
-    {
-      $match: {
-        _id: new mongoose.ObjectId.Types.ObjectId(playlistId),
+  try {
+    const playListDetails = await PlayList.aggregate([
+      {
+        $match: {
+          _id: new mongoose.Types.ObjectId(playlistId),
+        },
       },
-      
-    },
-  ]);
+      {
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "user_details",
+          pipeline: [
+            {
+              $project: {
+                username: 1,
+                fullName: 1,
+                avatar: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          owner: {
+            $first: "$user_details",
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "videos",
+          localField: "videos",
+          foreignField: "_id",
+          as: "Video details",
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "Video_Owner",
+                pipeline: [
+                  {
+                    $project: {
+                      username: 1,
+                      fullName: 1,
+                      avatar: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                VideoOwnerDetails: {
+                  $first: "$Video_Owner",
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    res
+      .status(200)
+      .json(new ApiResponse(200, playListDetails, "PlayList details fetched "));
+  } catch (error) {
+    throw new APIError(
+      500,
+      error,
+      "something went wrong while fetching the user details "
+    );
+  }
 });
 
 const addVideoToPlaylist = asyncHandler(async (req, res) => {
