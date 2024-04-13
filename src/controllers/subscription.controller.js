@@ -112,11 +112,11 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
               },
             },
           ],
-          subscriberCount:[
+          subscriberCount: [
             {
-              $count:"subscribers"
-            }
-          ]
+              $count: "subscribers",
+            },
+          ],
         },
       },
     ]);
@@ -124,14 +124,86 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
     res
       .status(200)
       .json(
-        new ApiResponse(200, getSubscribedChannelsByOwner[0], "subscriber fetched")
+        new ApiResponse(
+          200,
+          getSubscribedChannelsByOwner[0],
+          "subscriber fetched"
+        )
       );
-  } catch (error) {}
+  } catch (error) {
+    throw new APIError(500, "Something went wrong while getting information ");
+  }
 });
 
 // controller to return channel list to which user has subscribed
+//  in simple words the owner of channel has subscribed how many channels . that is what we have to find out .
+
 const getSubscribedChannels = asyncHandler(async (req, res) => {
-  const { subscriberId } = req.params;
+  const { channelId } = req.params;
+  if (!channelId) {
+    throw new APIError(400, "subscriber id is required");
+  }
+  if (!isValidObjectId(channelId)) {
+    throw new APIError(400, "subscriber id is invalid ");
+  }
+  if (req.user._id.toString() != channelId.toString()) {
+    throw new APIError(400, "you can not check the subscriber of the channel ");
+  }
+  try {
+    const getSubscribedUsers = await Subscription.aggregate([
+      {
+        $match: {
+          subscriber: new mongoose.Types.ObjectId(channelId),
+        },
+      },
+      {
+        $facet: {
+          SubscribedChannels: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "channel",
+                foreignField: "_id",
+                as: "ChannelsSubscribedByOwner",
+                pipeline: [
+                  {
+                    $project: {
+                      username: 1,
+                      fullName: 1,
+                      avatar: 1,
+                      createdAt: 1,
+                      updatedAt: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                channel: {
+                  $first: "$ChannelsSubscribedByOwner",
+                },
+              },
+            },
+          ],
+          CountOfSubscribedChannels: [
+            {
+              $count: "channel",
+            },
+          ],
+        },
+      },
+    ]);
+    res
+      .status(200)
+      .json(new ApiResponse(200, getSubscribedUsers[0], "User channels fetched "));
+  } catch (error) {
+    throw new APIError(
+      500,
+      error,
+      "Something went wrong while fetching the information of subscribed channels of channel"
+    );
+  }
 });
 
 export { toggleSubscription, getUserChannelSubscribers, getSubscribedChannels };
