@@ -454,7 +454,6 @@ const getWatchHistory = asyncHandler(async (req, res) => {
       },
     },
   ]);
-  console.log("log from  get watch history ", user[0].watchHistory);
   return res
     .status(200)
     .json(new ApiResponse(200, user[0].watchHistory, "watch History fetched "));
