@@ -10,6 +10,7 @@ import {
   uploadOnCloudinary,
   deleteFromCloudinary,
 } from "../utils/cloudinary.js";
+import { ApiError } from "next/dist/server/api-utils/index.js";
 
 const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
@@ -160,94 +161,141 @@ const getVideoById = asyncHandler(async (req, res) => {
       $inc: { views: 1 },
     });
   }
-  const getCommentsAndLikeFortheRequestedVideo = await Video.aggregate([
-    {
-      $match: {
-        _id: new mongoose.Types.ObjectId(videoId),
-        isPublished: true,
-      },
-    },
-    {
-      $facet: {
-        getVideoDetails: [
-          {
-            $lookup: {
-              from: "users",
-              localField: "owner",
-              foreignField: "_id",
-              as: "owner_details",
-              pipeline: [
-                {
-                  $project: {
-                    username: 1,
-                    fullName: 1,
-                    avatar: 1,
-                    createdAt: 1,
-                    updatedAt: 1,
+  try {
+    const getCommentLikeAndSubscriptionFortheRequestedVideo =
+      await Video.aggregate([
+        {
+          $match: {
+            _id: new mongoose.Types.ObjectId(videoId),
+            isPublished: true,
+          },
+        },
+        {
+          $facet: {
+            getVideoDetails: [
+              {
+                $lookup: {
+                  from: "users",
+                  localField: "owner",
+                  foreignField: "_id",
+                  as: "owner_details",
+                  pipeline: [
+                    {
+                      $project: {
+                        username: 1,
+                        fullName: 1,
+                        avatar: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $addFields: {
+                  owner_details: {
+                    $first: "$owner_details",
                   },
                 },
-              ],
-            },
-          },
-          {
-            $addFields: {
-              owner_details: {
-                $first: "$owner_details",
               },
-            },
-          },
-        ],
-        getLikeCommentAndSubscription: [
-          {
-            $lookup: {
-              from: "likes",
-              localField: "_id",
-              foreignField: "video",
-              as: "likes",
-            },
-          },
-          {
-            $addFields: {
-              likedByUser: {
-                $in: [req.user?._id, "$likes.likedBy"],
-              },
-              totalNumberOfLikes: {
-                $sum: { $size: "$likes" },
-              },
-            },
-          },
-          {
-            $lookup: {
-              from: "comments",
-              localField: "_id",
-              foreignField: "video",
-              as: "Comments",
-            },
-          },
-          {
-            $addFields: {
-              totalNumberOfComments: {
-                $sum: {
-                  $size: "$Comments",
+            ],
+            getLikeCommentAndSubscription: [
+              {
+                $lookup: {
+                  from: "likes",
+                  localField: "_id",
+                  foreignField: "video",
+                  as: "likes",
                 },
               },
-            },
-          },
-        ],
-      },
-    },
-    // TODO: I have to work after working on the subscription controller.
-  ]);
+              {
+                $addFields: {
+                  likedByUser: {
+                    $in: [req.user?._id, "$likes.likedBy"],
+                  },
+                },
+              },
+              {
+                $lookup: {
+                  from: "comments",
+                  localField: "_id",
+                  foreignField: "video",
+                  as: "Comments",
+                },
+              },
 
-  res
-    .status(200)
-    .json(
-      new ApiResponse(
-        200,
-        getCommentsAndLikeFortheRequestedVideo,
-        "details fetched"
-      )
+              {
+                $lookup: {
+                  from: "subscriptions",
+                  localField: "owner",
+                  foreignField: "channel",
+                  as: "subscribers",
+                },
+              },
+              {
+                $addFields: {
+                  isSubscribedTo: {
+                    $in: [req.user?._id, "$subscribers.subscriber"],
+                  },
+                },
+              },
+              {
+                $group: {
+                  _id: null,
+                  totalLikesOnTheVideo: {
+                    $sum: { $size: "$likes" },
+                  },
+                  totalCommentOnTheVideo: {
+                    $sum: { $size: "$Comments" },
+                  },
+                  TotalNumberOfSubscriber: { $sum: { $size: "$subscribers" } },
+                  isSubscribedTo: { $first: "$isSubscribedTo" },
+                  likedByUser: { $first: "$likedByUser" },
+                },
+              },
+            ],
+          },
+        },
+      ]);
+    if (
+      !getCommentLikeAndSubscriptionFortheRequestedVideo[0].getVideoDetails
+        .length
+    ) {
+      throw new APIError(404, "Video does not exist");
+    }
+    const user = await User.findById(req.user?._id);
+    const matchedVideoInWatchHistory = user.watchHistory.find((video) =>
+      video.equals(videoId)
     );
+    if (!matchedVideoInWatchHistory) {
+      const throwVideoToWatchHistory = await User.findByIdAndUpdate(
+        req.user?._id,
+        {
+          $push: { watchHistory: videoId },
+        },
+        {
+          new: true,
+        }
+      );
+    }
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(
+          200,
+          getCommentLikeAndSubscriptionFortheRequestedVideo,
+          "details fetched"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(
+      500,
+      error,
+      "Something went wrong while fetching the video "
+    );
+  }
 });
 
 const updateVideo = asyncHandler(async (req, res) => {
