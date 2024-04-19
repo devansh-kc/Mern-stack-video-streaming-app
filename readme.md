@@ -13,3 +13,7 @@ Also, I have found an great resourse to make the frotend of this app , So these 
 ---
 
 Apart from that the frontend resourse also contains the other component of different app .
+
+---
+Also I created a new repo for the frontend part of an app  to make thing more easier :-https://github.com/devansh-kc/Video-streaming-mern-app-frontend-
+
