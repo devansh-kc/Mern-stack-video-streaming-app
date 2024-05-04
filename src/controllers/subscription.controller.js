@@ -60,7 +60,6 @@ const toggleSubscription = asyncHandler(async (req, res) => {
 // TODO: after that I will show the info and number of count
 const getUserChannelSubscribers = asyncHandler(async (req, res) => {
   const { subscriberId } = req.params;
-  console.log(subscriberId);
   if (!subscriberId) {
     throw new APIError(400, "channel Id is required ");
   }

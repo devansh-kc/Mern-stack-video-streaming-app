@@ -8,6 +8,7 @@ import {
 import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import { ApiError } from "next/dist/server/api-utils/index.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -38,65 +39,71 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const { fullName, email, username, password } = req.body;
   // console.log( fullName, email, username, password );
+  try {
+    if (
+      [fullName, email, username, password].some(
+        (field) => field?.trim() === ""
+      )
+    ) {
+      throw new APIError(400, "All fields are required");
+    }
+    const existedUser = await User.findOne({ $or: [{ username }, { email }] });
+    // console.log(existedUser);
 
-  if (
-    [fullName, email, username, password].some((field) => field?.trim() === "")
-  ) {
-    throw new APIError(400, "All fields are required");
-  }
-  const existedUser = await User.findOne({ $or: [{ username }, { email }] });
-  // console.log(existedUser);
+    if (existedUser) {
+      throw new APIError(
+        409,
+        "user with email or user with username already exists"
+      );
+    }
+    // console.log(req.files.avatar.path);
+    const avatarLocalPath = req.files?.avatar[0]?.path;
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path;
+    // console.log(avatarLocalPath);
+    // console.log(req.files);
+    let coverImageLocalPath;
+    if (
+      req.files &&
+      Array.isArray(req.files.coverImage) &&
+      req.files.coverImage.length > 0
+    ) {
+      coverImageLocalPath = req.files.coverImage[0].path;
+    }
+    if (!avatarLocalPath) {
+      throw new APIError(400, "Avatar Local file is required");
+    }
+    // console.log(req.files)
 
-  if (existedUser) {
-    throw new APIError(
-      409,
-      "user with email or user with username already exists"
+    // console.log(avatarLocalPath);
+    const avatar = await uploadOnCloudinary(avatarLocalPath);
+
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+    if (!avatar) {
+      throw new APIError(400, "Avatar  file for cloudinary  is required");
+    }
+    const user = await User.create({
+      fullName,
+      avatar: avatar.url,
+      coverImage: coverImage?.url || "",
+      email,
+      password,
+      username: username.toLowerCase(),
+    });
+    const createdUser = await User.findById(user._id).select(
+      "-password -refreshToken"
     );
+    if (!createdUser) {
+      throw new APIError(
+        500,
+        "something went wrong thile regristing the user "
+      );
+    }
+    return res
+      .status(201)
+      .json(new ApiResponse(200, createdUser, "user registeres successfully "));
+  } catch (error) {
+    throw new ApiError(500, error, "Error while creating the user");
   }
-  // console.log(req.files.avatar.path);
-  const avatarLocalPath = req.files?.avatar[0]?.path;
-  // const coverImageLocalPath = req.files?.coverImage[0]?.path;
-  // console.log(avatarLocalPath);
-  // console.log(req.files);
-  let coverImageLocalPath;
-  if (
-    req.files &&
-    Array.isArray(req.files.coverImage) &&
-    req.files.coverImage.length > 0
-  ) {
-    coverImageLocalPath = req.files.coverImage[0].path;
-  }
-  if (!avatarLocalPath) {
-    throw new APIError(400, "Avatar Local file is required");
-  }
-  console.log(avatarLocalPath);
-  console.log(req.files)
-
-  // console.log(avatarLocalPath);
-  const avatar = await uploadOnCloudinary(avatarLocalPath);
-  console.log(avatar)
-
-  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
-  if (!avatar) {
-    throw new APIError(400, "Avatar  file for cloudinary  is required");
-  }
-  const user = await User.create({
-    fullName,
-    avatar: avatar.url,
-    coverImage: coverImage?.url || "",
-    email,
-    password,
-    username: username.toLowerCase(),
-  });
-  const createdUser = await User.findById(user._id).select(
-    "-password -refreshToken"
-  );
-  if (!createdUser) {
-    throw new APIError(500, "something went wrong thile regristing the user ");
-  }
-  return res
-    .status(201)
-    .json(new ApiResponse(200, createdUser, "user registeres successfully "));
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -173,7 +180,6 @@ const logoutUser = asyncHandler(async (req, res) => {
 });
 
 const refreshAccessToken = asyncHandler(async (req, res) => {
-  console.log(req.body);
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
   if (!incomingRefreshToken) {
