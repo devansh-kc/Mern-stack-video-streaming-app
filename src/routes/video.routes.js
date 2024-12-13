@@ -11,7 +11,7 @@ import {
 import { upload } from "../middlewares/multer.middleware.js";
 
 const router = Router();
-router.use(verifyJWT);
+
 router
   .route("/")
   .get(getAllVideos)
@@ -26,15 +26,16 @@ router
         maxCount: 1,
       },
     ]),
+    verifyJWT,
     publishAVideo
   );
 
 router
   .route("/:videoId")
   .get(getVideoById)
-  .delete(deleteVideo)
-  .patch(upload.single("thumbnail"), updateVideo);
+  .delete(verifyJWT, deleteVideo)
+  .patch(upload.single("thumbnail"), verifyJWT, updateVideo);
 
-router.route("/toggle/publish/:videoId").patch(togglePublishStatus);
+router.route("/toggle/publish/:videoId").patch(verifyJWT, togglePublishStatus);
 
 export default router;
