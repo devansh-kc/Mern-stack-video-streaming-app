@@ -3,10 +3,11 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 
 const app = express();
+// console.log("cors", process.env.CORS_ORIGIN);
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );

@@ -9,6 +9,7 @@ import { ApiResponse } from "../utils/apiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { ApiError } from "next/dist/server/api-utils/index.js";
+import { sign } from "crypto";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -114,15 +115,14 @@ const loginUser = asyncHandler(async (req, res) => {
   //access and referesh token
   //send cookie
 
-  const { email, username, password } = req.body;
-  // console.log(email, username, password);
+  const { email, password } = req.body;
 
-  if (!username && !email) {
+  console.log("userDetails ", email, password);
+
+  if (!email) {
     throw new APIError(400, "username or password is required");
   }
-  const user = await User.findOne({
-    $or: [{ username }, { email }],
-  });
+  const user = await User.findOne({ email });
   if (!user) {
     throw new APIError(404, "User does not exst");
   }
@@ -133,13 +133,16 @@ const loginUser = asyncHandler(async (req, res) => {
   const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
     user._id
   );
+
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
   const options = {
     httpOnly: true,
-    secure: true,
+    secure: false,
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   };
+
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)

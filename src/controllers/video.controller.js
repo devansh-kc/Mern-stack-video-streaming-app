@@ -140,6 +140,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
 
 const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
+
   //TODO: get video by id
   // TODO: check  , is it valid object id or not , after that find the document ,
   // TODO: after finding the document use aggregations to show the number of likes and comments
@@ -265,7 +266,8 @@ const getVideoById = asyncHandler(async (req, res) => {
       throw new APIError(404, "Video does not exist");
     }
     const user = await User.findById(req.user?._id);
-    const matchedVideoInWatchHistory = user.watchHistory.find((video) =>
+
+    const matchedVideoInWatchHistory = await user.watchHistory.find((video) =>
       video.equals(videoId)
     );
     if (!matchedVideoInWatchHistory) {
@@ -279,6 +281,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         }
       );
     }
+    console.log(matchedVideoInWatchHistory);
 
     res
       .status(200)
@@ -290,6 +293,7 @@ const getVideoById = asyncHandler(async (req, res) => {
         )
       );
   } catch (error) {
+    console.log(" from getVideoDetails", error);
     throw new ApiError(
       500,
       error,
