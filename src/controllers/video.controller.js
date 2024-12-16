@@ -281,7 +281,6 @@ const getVideoById = asyncHandler(async (req, res) => {
         }
       );
     }
-    console.log(matchedVideoInWatchHistory);
 
     res
       .status(200)
