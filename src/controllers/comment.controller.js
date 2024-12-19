@@ -34,6 +34,11 @@ const getVideoComments = asyncHandler(async (req, res) => {
       },
     },
     {
+      $sort: {
+        createdAt: -1,
+      },
+    },
+    {
       $skip: (PageNum - 1) * limitNum,
     },
     {
@@ -42,6 +47,7 @@ const getVideoComments = asyncHandler(async (req, res) => {
         localField: "owner",
         foreignField: "_id",
         as: "owner",
+
         pipeline: [
           {
             $project: {
@@ -97,13 +103,15 @@ const getVideoComments = asyncHandler(async (req, res) => {
       },
     },
   ]);
+
   if (!getComments?.length) {
     throw new APIError(
       400,
       "No comments found for this video. Or, you may try a lower page number."
     );
+  } else {
+    return res.status(200).json(new ApiResponse(200, getComments, "comments"));
   }
-  res.status(200).json(new ApiResponse(200, getComments, "comments"));
 });
 
 const addComment = asyncHandler(async (req, res) => {
@@ -115,24 +123,27 @@ const addComment = asyncHandler(async (req, res) => {
   if (!isValidObjectId(videoId)) {
     throw new APIError(400, "This video doesn't exists");
   }
-  
+
   if (!content) {
     throw new APIError(404, "commment is required");
   }
+
   try {
-  const comment = await Comment.create({
-    content,
-    video: videoId,
-    owner: req.user._id,
-  });
-  
-  if (!comment) {
-    throw new APIError(500, "Something went wrong ");
-  }
-  res
+    const comment = await Comment.create({
+      content,
+      video: videoId,
+      owner: req.user._id,
+    });
+    console.log(comment);
+
+    if (!comment) {
+      throw new APIError(500, "Something went wrong ");
+    }
+    res
       .status(200)
       .json(new ApiResponse(200, comment, "Comment created successfully"));
   } catch (error) {
+    console.log(error);
     throw new APIError(400, error);
   }
 });
@@ -153,7 +164,6 @@ const updateComment = asyncHandler(async (req, res) => {
     throw new APIError(400, " you are not allowed to change this comment");
   }
   try {
-
     const newComment = await Comment.findByIdAndUpdate(
       commentId,
       {
