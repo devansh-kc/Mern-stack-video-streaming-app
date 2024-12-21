@@ -99,7 +99,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
   try {
     if (existingLike) {
       await Like.findByIdAndDelete(existingLike._id);
-      res
+      return res
         .status(200)
         .json(new ApiResponse(200, {}, "Like from tweet removed "));
     } else {
@@ -107,7 +107,9 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
         tweet: tweetId,
         likedBy: loggedInUser,
       });
-      res.status(200).json(new ApiResponse(200, tweetLike, "tweet Liked"));
+      return res
+        .status(200)
+        .json(new ApiResponse(200, tweetLike, "tweet Liked"));
     }
   } catch (error) {
     throw new APIError(
@@ -119,7 +121,65 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
-  //TODO: get all liked videos
+  const loggedInUser = req.user._id;
+
+  try {
+    const likedVideos = await Like.aggregate([
+      {
+        $match: {
+          likedBy: new mongoose.Types.ObjectId(req.user._id),
+        },
+      },
+      {
+        $lookup: {
+          from: "videos",
+          localField: "video",
+          foreignField: "_id",
+          as: "LikedVideo",
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner_details",
+                pipeline: [
+                  {
+                    $project: {
+                      fullName: 1,
+                      username: 1,
+                      avatar: 1,
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                owner_details: { $arrayElemAt: ["$owner_details", 0] },
+              },
+            },
+            // {
+            //   $addFields: {
+            //     LikedVideo: { $arrayElemAt: ["$LikedVideo", 0] },
+            //   },
+            // },
+          ],
+        },
+      },
+    ]);
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, likedVideos, "Liked Videos"));
+  } catch (error) {
+    console.log(error);
+    throw new APIError(
+      500,
+      error,
+      "Something went wrong while liking the tweet "
+    );
+  }
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
