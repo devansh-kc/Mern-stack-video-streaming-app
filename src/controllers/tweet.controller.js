@@ -55,7 +55,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
   const userTweets = await Tweet.aggregate([
     {
       $match: {
-        owner: new mongoose.Types.ObjectId(req.user._id),
+        owner: new mongoose.Types.ObjectId(userId),
       },
     },
     {
@@ -66,6 +66,24 @@ const getUserTweets = asyncHandler(async (req, res) => {
         as: "tweetLikedBy",
       },
     },
+    {
+      $lookup: {
+        from: "users",
+        localField: "owner",
+        foreignField: "_id",
+        as: "tweetOwner",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              fullName: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+
     {
       $group: {
         _id: "$_id",
