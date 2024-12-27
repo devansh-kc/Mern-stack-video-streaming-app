@@ -12,7 +12,7 @@ const createTweet = asyncHandler(async (req, res) => {
   // TODO: by useing findByID (req.user._id) and after that i will store it in a var and
   // TODO : while creating the tweet i will put the user in owner .
   const { content } = req.body;
-
+  console.log(content);
   try {
     if (!content) {
       throw new APIError(404, "content is required");
