@@ -72,7 +72,9 @@ const toggleCommentLike = asyncHandler(async (req, res) => {
         );
     }
   } catch (error) {
-    throw new APIError(500, error, "Something went wrong ");
+    return res
+      .status(500)
+      .json(new APIError(500, error, "Something went wrong "));
   }
 });
 
@@ -84,13 +86,28 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
   }
 
   if (!isValidObjectId(tweetId)) {
-    throw new APIError(400, "this tweet id is not valid ");
+    return res
+      .status(400)
+      .json(new APIError(400, "this tweet id is not valid "));
   }
   const tweet = await Tweet.findById(tweetId);
+
   if (!tweet) {
-    throw new APIError(400, "this tweet doesn't exists anymore");
+    return res
+      .status(400)
+      .json(new APIError(400, "this tweet doesn't exists anymore"));
   }
+
   const loggedInUser = req.user?._id;
+
+  if (tweet.owner.toString() == loggedInUser.toString()) {
+    return res
+      .status(400)
+      .json(
+        new APIError(400, "You Cannot Like this tweet as you are the owner")
+      );
+  }
+
   const existingLike = await Like.findOne({
     likedBy: loggedInUser,
     tweet: tweet._id,
@@ -101,7 +118,7 @@ const toggleTweetLike = asyncHandler(async (req, res) => {
       await Like.findByIdAndDelete(existingLike._id);
       return res
         .status(200)
-        .json(new ApiResponse(200, {}, "Like from tweet removed "));
+        .json(new ApiResponse(200, { message: "Like from tweet removed " }));
     } else {
       const tweetLike = await Like.create({
         tweet: tweetId,
