@@ -57,9 +57,11 @@ const getUserPlaylists = asyncHandler(async (req, res) => {
     },
   ]);
   if (!userPlayList?.length) {
-    throw new APIError(400, "this user haven't created any playlists yet ");
+    return res
+      .status(400)
+      .json(new APIError(400, "this user haven't created any playlists yet "));
   }
-  res
+  return res
     .status(200)
     .json(
       new ApiResponse(200, userPlayList, "Playlist of specified user fetched ")
@@ -112,37 +114,18 @@ const getPlaylistById = asyncHandler(async (req, res) => {
           from: "videos",
           localField: "videos",
           foreignField: "_id",
-          as: "Video details",
-          pipeline: [
-            {
-              $lookup: {
-                from: "users",
-                localField: "owner",
-                foreignField: "_id",
-                as: "Video_Owner",
-                pipeline: [
-                  {
-                    $project: {
-                      username: 1,
-                      fullName: 1,
-                      avatar: 1,
-                    },
-                  },
-                ],
-              },
-            },
-            {
-              $addFields: {
-                VideoOwnerDetails: {
-                  $first: "$Video_Owner",
-                },
-              },
-            },
-          ],
+          as: "Video_details",
+        },
+      },
+      {
+        $addFields: {
+          totalViews: {
+            $sum: "$Video_details.views",
+          },
         },
       },
     ]);
-    res
+    return res
       .status(200)
       .json(new ApiResponse(200, playListDetails, "PlayList details fetched "));
   } catch (error) {

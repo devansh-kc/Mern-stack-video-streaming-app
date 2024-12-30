@@ -18,7 +18,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
   const sortTypeNum = Number(sortType) || -1;
   const limitNum = Number(limit);
   const pageNumber = Number(page);
-  await Video.createIndexes({ title: "text", description: "text" });
+
   if (userId && !isValidObjectId(userId)) {
     throw new APIError(400, "Invalid user ID");
   }
