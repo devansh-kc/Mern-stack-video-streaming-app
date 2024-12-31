@@ -55,6 +55,33 @@ const getUserPlaylists = asyncHandler(async (req, res) => {
         owner: new mongoose.Types.ObjectId(userId),
       },
     },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "videos",
+        foreignField: "_id",
+        as: "VideoThumbnail",
+      },
+    },
+    {
+      $addFields: {
+        TotalNumbersOfViews: {
+          $sum: "$VideoThumbnail.views",
+        },
+      },
+    },
+    {
+      $addFields: {
+        VideoThumbnail: {
+          $ifNull: [{ $arrayElemAt: ["$VideoThumbnail.thumbnail", 0] }, null],
+        },
+      },
+    },
+    {
+      $sort: {
+        createdAt: -1,
+      },
+    },
   ]);
   if (!userPlayList?.length) {
     return res
@@ -102,13 +129,7 @@ const getPlaylistById = asyncHandler(async (req, res) => {
           ],
         },
       },
-      {
-        $addFields: {
-          owner: {
-            $first: "$user_details",
-          },
-        },
-      },
+
       {
         $lookup: {
           from: "videos",
