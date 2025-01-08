@@ -146,6 +146,7 @@ const getPlaylistById = asyncHandler(async (req, res) => {
         },
       },
     ]);
+    console.log(playListDetails);
     return res
       .status(200)
       .json(new ApiResponse(200, playListDetails, "PlayList details fetched "));
